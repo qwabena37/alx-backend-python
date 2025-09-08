@@ -15,12 +15,16 @@ def stream_users():
     if connection is None:
         return
     
+    cursor = None
     try:
         cursor = connection.cursor(dictionary=True)
         cursor.execute("SELECT * FROM user_data")
         
+        # Fetch all results first to avoid unread result error
+        results = cursor.fetchall()
+        
         # Use generator to yield one row at a time
-        for row in cursor:
+        for row in results:
             yield row
             
     except Exception as e:
