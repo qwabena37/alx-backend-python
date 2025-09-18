@@ -21,7 +21,8 @@ class TestGithubOrgClient(unittest.TestCase):
     def test_org(self, org_name: str, mock_get_json: MagicMock) -> None:
         """Test that GithubOrgClient.org returns the correct value."""
         # Setup mock return value
-        expected_org_data = {"repos_url": f"https://api.github.com/orgs/{org_name}/repos"}
+        expected_org_data = {
+            "repos_url": f"https://api.github.com/orgs/{org_name}/repos"}
         mock_get_json.return_value = expected_org_data
 
         # Create client and call org
@@ -29,7 +30,8 @@ class TestGithubOrgClient(unittest.TestCase):
         result = client.org
 
         # Assertions
-        mock_get_json.assert_called_once_with(f"https://api.github.com/orgs/{org_name}")
+        mock_get_json.assert_called_once_with(
+            f"https://api.github.com/orgs/{org_name}")
         self.assertEqual(result, expected_org_data)
 
     def test_public_repos_url(self) -> None:
@@ -37,7 +39,8 @@ class TestGithubOrgClient(unittest.TestCase):
         with patch('client.GithubOrgClient.org',
                    new_callable=PropertyMock) as mock_org:
             # Setup mock org property
-            test_payload = {"repos_url": "https://api.github.com/orgs/google/repos"}
+            test_payload = {
+                "repos_url": "https://api.github.com/orgs/google/repos"}
             mock_org.return_value = test_payload
 
             client = GithubOrgClient("google")
@@ -77,7 +80,11 @@ class TestGithubOrgClient(unittest.TestCase):
         ({"license": {"key": "my_license"}}, "my_license", True),
         ({"license": {"key": "other_license"}}, "my_license", False),
     ])
-    def test_has_license(self, repo: Dict, license_key: str, expected: bool) -> None:
+    def test_has_license(
+            self,
+            repo: Dict,
+            license_key: str,
+            expected: bool) -> None:
         """Test has_license static method."""
         result = GithubOrgClient.has_license(repo, license_key)
         self.assertEqual(result, expected)
@@ -129,3 +136,4 @@ class TestIntegrationGithubOrgClient(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+

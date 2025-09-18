@@ -51,7 +51,11 @@ class TestGetJson(unittest.TestCase):
         ("http://holberton.io", {"payload": False}),
     ])
     @patch('utils.requests.get')
-    def test_get_json(self, test_url: str, test_payload: Dict, mock_get: MagicMock) -> None:
+    def test_get_json(
+            self,
+            test_url: str,
+            test_payload: Dict,
+            mock_get: MagicMock) -> None:
         """Test get_json returns correct data."""
         # Setup mock response
         mock_response = MagicMock()

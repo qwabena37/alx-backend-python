@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ai.zencoder.plugin.chat.index">
+    <option name="activeChatId" value="95a83481-da71-4434-8c60-b4209db6149c" />
+    <option name="chatMetadata" value="{&quot;95a83481-da71-4434-8c60-b4209db6149c&quot;:{&quot;id&quot;:&quot;95a83481-da71-4434-8c60-b4209db6149c&quot;,&quot;title&quot;:&quot;Pycodestyle Validation Fixes&quot;,&quot;createdAt&quot;:1758225056670,&quot;updatedAt&quot;:1758225395095,&quot;isAgent&quot;:true,&quot;isNameGenerated&quot;:true,&quot;messageCount&quot;:8,&quot;lastMessagePreview&quot;:&quot;Now I have all the errors.\n\n\n## Addressing initial fixes  \n- Found blank lines at the end of client....&quot;}}" />
+  </component>
+</project>

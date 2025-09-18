@@ -15,19 +15,17 @@ def stream_users_in_batches(batch_size):
     connection = seed.connect_to_prodev()
     if connection is None:
         return
-    
     try:
         cursor = connection.cursor(dictionary=True)
         offset = 0
-        
         while True:
             # Fetch batch with LIMIT and OFFSET
-            cursor.execute(f"SELECT * FROM user_data LIMIT {batch_size} OFFSET {offset}")
+            cursor.execute(
+                f"SELECT * FROM user_data LIMIT {batch_size} OFFSET {offset}"
+            )
             batch = cursor.fetchall()
-            
             if not batch:  # No more data
                 break
-                
             yield batch
             offset += batch_size
             
