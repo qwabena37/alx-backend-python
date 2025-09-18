@@ -87,7 +87,7 @@ def create_table(connection):
 def insert_data(connection, csv_file):
     """
     Inserts data from CSV file into the database if it does not exist
-    Args: 
+    Args:
         connection - MySQL connection object
         csv_file - path to CSV file containing user data
     """

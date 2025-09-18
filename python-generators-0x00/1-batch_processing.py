@@ -28,7 +28,7 @@ def stream_users_in_batches(batch_size):
                 break
             yield batch
             offset += batch_size
-            
+
     except Exception as e:
         print(f"Error streaming batches: {e}")
     finally:
