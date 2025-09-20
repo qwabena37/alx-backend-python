@@ -23,6 +23,7 @@ class User(AbstractUser):
         editable=False,
         db_index=True
     )
+    username = models.CharField(max_length=150, blank=True)
     first_name = models.CharField(max_length=150, null=False, blank=False)
     last_name = models.CharField(max_length=150, null=False, blank=False)
     email = models.EmailField(unique=True, null=False, blank=False)
@@ -37,7 +38,7 @@ class User(AbstractUser):
 
     # Use email as the unique identifier
     USERNAME_FIELD = 'email'
-    REQUIRED_FIELDS = ['username', 'first_name', 'last_name']
+    REQUIRED_FIELDS = ['first_name', 'last_name']
 
     class Meta:
         db_table = 'auth_user_extended'
