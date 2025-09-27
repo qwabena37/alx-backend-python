@@ -81,13 +81,14 @@ class IsConversationParticipant(permissions.BasePermission):
                 code=status.HTTP_403_FORBIDDEN,
             )
 
-        # Verify the user is a participant of the conversation
-        if not Message.objects.filter(
-            id=conversation_id, participants=request.user
-        ).exists():
-            raise PermissionDenied(
-                detail="You are not part of this conversation",
-                code=status.HTTP_403_FORBIDDEN,
-            )
+class IsMessageSenderOrReadOnly(permissions.BasePermission):
+    """
+    Only sender can update/delete a message. Other participants can only read.
+    """
+
+    def has_object_permission(self, request, view, obj):
+        if request.method in permissions.SAFE_METHODS:  # GET, HEAD, OPTIONS
+            return request.user in obj.conversation.participants.all()
+        return obj.sender == request.user
 
         return True
