@@ -82,7 +82,7 @@ class IsConversationParticipant(permissions.BasePermission):
             )
 
         # Verify the user is a participant of the conversation
-        if not Conversation.objects.filter(
+        if not Message.objects.filter(
             id=conversation_id, participants=request.user
         ).exists():
             raise PermissionDenied(
