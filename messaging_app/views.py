@@ -11,6 +11,7 @@ from rest_framework import viewsets
 from .permissions import IsConversationParticipant, IsMessageSenderOrReadOnly
 from .pagination import MessagePagination
 
+
 class ConversationViewSet(viewsets.ModelViewSet):
     serializer_class = ConversationSerializer
     permission_classes = [IsAuthenticated, IsParticipant]
@@ -22,6 +23,7 @@ class ConversationViewSet(viewsets.ModelViewSet):
 class MessageViewSet(viewsets.ModelViewSet):
     serializer_class = MessageSerializer
     permission_classes = [IsAuthenticated, IsMessageSenderOrReadOnly]
+    pagination_class = MessagePagination 
 
     def get_queryset(self):
         return Message.objects.filter(conversation__participants=self.request.user)
