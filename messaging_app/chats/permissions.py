@@ -1,110 +1,24 @@
-# chats/permissions.py
 from rest_framework import permissions
 
-class IsParticipant(permissions.BasePermission):
+class IsMessageOwner(permissions.BasePermission):
     """
-    Custom permission: only allow participants of a conversation to view/edit it.
+    Custom permission to only allow users to view their own messages.
+    Assumes the view has a `get_object()` method that returns a message instance.
     """
 
     def has_object_permission(self, request, view, obj):
-        # obj here will be a Conversation instance
-        return request.user in obj.participants.all()
-
-from rest_framework import permissions
-
-class IsMessageSenderOrReadOnly(permissions.BasePermission):
-    """
-    Only the sender can edit/delete their message.
-    Other participants can read.
-    """
-    def has_object_permission(self, request, view, obj):
-        if request.method in permissions.SAFE_METHODS:
-            return request.user in obj.conversation.participants.all()
-        return obj.sender == request.user
-
-from rest_framework import permissions
-
-class IsAuthenticatedCustom(permissions.BasePermission):
-    """
-    Custom permission: only allow access to authenticated users.
-    """
-
-    def has_permission(self, request, view):
-        return bool(request.user and request.user.is_authenticated)
-
-from rest_framework.permissions import BasePermission, SAFE_METHODS
-
-class IsOwnerOrReadOnly(BasePermission):
-    """
-    Custom permission to only allow owners of an object to edit it.
-    Others can only read (GET, HEAD, OPTIONS).
-    """
-
-    def has_object_permission(self, request, view, obj):
-        # Read permissions are allowed for any request
-        if request.method in SAFE_METHODS:
-            return True
-
-        # Write permissions are only allowed to the owner of the object
-        return obj.owner == request.user
+        # Only allow access if the user is either the sender or the receiver
+        user = request.user
+        return user.is_authenticated() and (obj.sender == user or obj.receiver == user)
     
-    # chats/permissions.py
-from rest_framework import permissions
-
-class IsMessageSenderOrReadOnly(permissions.BasePermission):
+class IsParticipantOfConversation(permissions.BasePermission):
     """
-    Only the sender can edit/delete their message.
-    Other participants can read.
+    Custom permission to only allow users to access conversations they are part of.
     """
 
     def has_object_permission(self, request, view, obj):
-        # SAFE_METHODS = ["GET", "HEAD", "OPTIONS"]
-        if request.method in permissions.SAFE_METHODS:
-            # allow read-only access if user is in the conversation
-            return request.user in obj.conversation.participants.all()
-        
+        user = request.user
 
-        # restrict PUT, PATCH, DELETE to sender only
-        if request.method in ["PUT", "PATCH", "DELETE"]:
-            return obj.sender == request.user
-
-        return False
-
-# chats/permissions.py
-from rest_framework import permissions
-from rest_framework.exceptions import PermissionDenied
-from rest_framework import status
-from .models import Message, Conversation
-
-class IsConversationParticipant(permissions.BasePermission):
-    """
-    Allow access only if user is authenticated and belongs to the conversation.
-    """
-
-    def has_permission(self, request, view):
-        # Must be logged in
-        if not request.user or not request.user.is_authenticated:
-            return False
-
-        # conversation_id must be present in request data or query params
-        conversation_id = (
-            request.data.get("conversation_id")
-            or request.query_params.get("conversation_id")
-        )
-        if not conversation_id:
-            raise PermissionDenied(
-                detail="conversation_id is required",
-                code=status.HTTP_403_FORBIDDEN,
-            )
-
-class IsMessageSenderOrReadOnly(permissions.BasePermission):
-    """
-    Only sender can update/delete a message. Other participants can only read.
-    """
-
-    def has_object_permission(self, request, view, obj):
-        if request.method in permissions.SAFE_METHODS:  # GET, HEAD, OPTIONS
-            return request.user in obj.conversation.participants.all()
-        return obj.sender == request.user
-
-        return True
+        if request.method in ['PUT', 'PATCH', 'DELETE']:
+            return user.is_authenticated() and obj.participants.filter(id=user.id).exists()
+        return user.is_authenticated()
