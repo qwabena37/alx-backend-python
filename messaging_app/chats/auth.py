@@ -1,23 +1,13 @@
-# chats/auth.py
-from rest_framework.authentication import BaseAuthentication
-from rest_framework.exceptions import AuthenticationFailed
-from django.contrib.auth.models import User
+# messaging_app/chats/auth.py
 
-class APIKeyAuthentication(BaseAuthentication):
+from rest_framework_simplejwt.tokens import RefreshToken
+
+def create_jwt_for_user(user):
     """
-    Custom authentication using X-API-KEY header.
+    Utility function to create JWT tokens for a given user.
     """
-    def authenticate(self, request):
-        api_key = request.headers.get("X-API-KEY")
-        if not api_key:
-            return None  # fallback to other authentication methods
-
-        if api_key != "my-secret-key":  # replace with real logic
-            raise AuthenticationFailed("Invalid API Key")
-
-        try:
-            user = User.objects.get(username="admin")  # assign a user
-        except User.DoesNotExist:
-            raise AuthenticationFailed("No such user")
-
-        return (user, None)
+    refresh = RefreshToken.for_user(user)
+    return {
+        'access': str(refresh.access_token),
+        'refresh': str(refresh),
+    }

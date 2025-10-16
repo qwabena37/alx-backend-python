@@ -1,115 +1,90 @@
 from django.db import models
-
-# Create your models here.
-import uuid
 from django.contrib.auth.models import AbstractUser
-from django.db import models
-from django.conf import settings
+from .managers import UserManager
+import uuid
 
-
+# User model
 class User(AbstractUser):
-    """
-    Extended User model with additional fields as per database specification
-    """
     ROLE_CHOICES = [
         ('guest', 'Guest'),
         ('host', 'Host'),
         ('admin', 'Admin'),
     ]
-
-    user_id = models.UUIDField(
-        primary_key=True,
-        default=uuid.uuid4,
-        editable=False,
-        db_index=True
-    )
-    username = models.CharField(max_length=150, blank=True)
-    first_name = models.CharField(max_length=150, null=False, blank=False)
-    last_name = models.CharField(max_length=150, null=False, blank=False)
+    user_id = models.UUIDField(primary_key=True, default=uuid.uuid4, unique=True, editable=False, db_index=True)
+    username = None
     email = models.EmailField(unique=True, null=False, blank=False)
-    password_hash = models.CharField(max_length=255, null=False, blank=False)
     phone_number = models.CharField(max_length=20, null=True, blank=True)
-    role = models.CharField(
-        max_length=10,
-        choices=ROLE_CHOICES,
-        default='guest',
-        null=False
-    )
+    password = models.CharField(max_length=128, null=False, blank=False) # This field is not usually hardcoded in django
+    role = models.CharField(max_length=50, choices=ROLE_CHOICES, null=False, default='guest')
     created_at = models.DateTimeField(auto_now_add=True)
-
-    # Use email as the unique identifier
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    objects = UserManager()
+    
+    # Use email instead of username for authentication
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = ['first_name', 'last_name']
-
+    
     class Meta:
-        db_table = 'auth_user_extended'
+        """Class for defining user table constraints and indexes"""
+        db_table = 'user'
+        constraints = [
+            models.UniqueConstraint(fields=['email'], name='unique_user_email')
+        ]
         indexes = [
             models.Index(fields=['email']),
+            models.Index(fields=['user_id'])
         ]
-
+    
     def __str__(self):
-        return f"{self.first_name} {self.last_name} ({self.email})"
+        return f'Name: {self.first_name} {self.last_name} ({self.email})'
+    
+    def get_full_name(self):
+        return f"{self.first_name} {self.last_name}"
+    
 
-
+# Conversation model
 class Conversation(models.Model):
-    """
-    Model to track conversations between users
-    """
-    conversation_id = models.UUIDField(
-        primary_key=True,
-        default=uuid.uuid4,
-        editable=False,
-        db_index=True
-    )
-    participants = models.ManyToManyField(
-        settings.AUTH_USER_MODEL,
-        related_name='conversations'
-    )
+    conversation_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False, unique=True, db_index=True)
+    participants = models.ManyToManyField(User, related_name='conversations')
     created_at = models.DateTimeField(auto_now_add=True)
-
+    updated_at = models.DateTimeField(auto_now=True)
+    
     class Meta:
-        ordering = ['-created_at']
+        """Class for defining conversation table indexes"""
+        db_table = 'conversation'
         indexes = [
             models.Index(fields=['created_at']),
+            models.Index(fields=['updated_at']),
+            models.Index(fields=['conversation_id'])
         ]
-
+    
     def __str__(self):
-        participants_list = list(self.participants.all())
-        if len(participants_list) >= 2:
-            return f"Conversation between {participants_list[0]} and {participants_list[1]}"
-        return f"Conversation {self.conversation_id}"
+        return f"Conversation {self.conversation_id} with {', '.join([str(user) for user in self.participants.all()])}"
 
-
+# Message model
 class Message(models.Model):
-    """
-    Model for individual messages within conversations
-    """
-    message_id = models.UUIDField(
-        primary_key=True,
-        default=uuid.uuid4,
-        editable=False,
-        db_index=True
-    )
-    sender = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
-        related_name='sent_messages'
-    )
-    conversation = models.ForeignKey(
-        Conversation,
-        on_delete=models.CASCADE,
-        related_name='messages'
-    )
-    message_body = models.TextField(null=False, blank=False)
+    message_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False, unique=True, db_index=True)
+    sender = models.ForeignKey(User, on_delete=models.CASCADE, related_name='sent_messages', null=False, db_index=True)
+    conversation = models.ForeignKey(Conversation, on_delete=models.CASCADE, related_name='messages', null=False, db_index=True)
+    message_body = models.TextField()
     sent_at = models.DateTimeField(auto_now_add=True)
-
+    
     class Meta:
-        ordering = ['-sent_at']
+        """Class for defining message table indexes"""
+        db_table = 'message'
+        ordering = ['sent_at']
         indexes = [
-            models.Index(fields=['sent_at']),
-            models.Index(fields=['sender']),
-            models.Index(fields=['conversation']),
+            models.Index(fields=["sender", "sent_at"]),
+            models.Index(fields=["conversation", "sent_at"]),
+            models.Index(fields=["sent_at"]),
         ]
-
+        constraints = [
+            models.CheckConstraint(
+                check=models.Q(message_body__isnull=False) & ~models.Q(message_body=''),
+                name="message_body_not_empty"
+            )
+        ]
+    
     def __str__(self):
-        return f"Message from {self.sender} at {self.sent_at}"
+        return f"Message {self.message_id} from {self.sender} in conversation {self.conversation_id}"    

@@ -1,39 +1,35 @@
-#!/usr/bin/python3
 """
-Generator function to stream rows from SQL database one by one
+0-stream_users.py
+Generator that streams rows from the user_data table one by one
 """
+import os
+from dotenv import load_dotenv
+import mysql.connector
+from mysql.connector import Error
 
-import seed
-
+# Load environment variables
+load_dotenv()
 
 def stream_users():
     """
-    Generator function that streams rows from user_data table one by one
-    Yields: dictionary containing user data for each row
+    Generator function that connects to the ALX_prodev database
+    and yields rows from user_data table one by one.
     """
-    connection = seed.connect_to_prodev()
-    if connection is None:
-        return
-    cursor = None
     try:
+        connection = mysql.connector.connect(
+            database="ALX_prodev",
+            user = os.getenv("DB_USER"),
+            password = os.getenv("DB_PASSWORD"),
+            host = os.getenv("DB_HOST")
+        )
         cursor = connection.cursor(dictionary=True)
-        cursor.execute("SELECT * FROM user_data")
-        # Fetch all results first to avoid unread result error
-        results = cursor.fetchall()
-        # Use generator to yield one row at a time
-        for row in results:
+        cursor.execute("SELECT * FROM user_data;")
+        
+        for row in cursor:
             yield row
-    except Exception as e:
-        print(f"Error streaming users: {e}")
-    finally:
-        if cursor:
-            cursor.close()
-        if connection:
-            connection.close()
-
-
-if __name__ == "__main__":
-    # Test the generator
-    for user in stream_users():
-        print(user)
-        break  # Just print first user for testing
+        
+        cursor.close()
+        connection.close()
+    except Error as e:
+        print(f"Error: {e}")
+        return        

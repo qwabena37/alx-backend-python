@@ -1,43 +1,50 @@
-from django.db.models.signals import post_save, pre_save, post_delete
+from datetime import timezone
+from django.db.models.signals import post_save
+from django.db.models.signals import pre_save
+from django.db.models.signals import post_delete
 from django.dispatch import receiver
-from django.contrib.auth import get_user_model
-from django.db.models import Q
-
-
 from .models import Message, Notification, MessageHistory
-# from .utils import create_message_notification, log_to_message_history
-
+from django.contrib.auth import get_user_model
 
 User = get_user_model()
 
-def create_message_notification(message):
-    Notification.objects.create(message=message, receiver=message.receiver)
-
-def log_to_message_history(message):
-    if message.edited == True:
-        message_history = MessageHistory.objects.create(message=message, message_body=message.message_body, edited_by=message.sender)
-
-def delete_user_entries(user):
-    Message.objects.filter(Q(sender=user) | Q(receiver=user)).delete()
-    Notification.objects.filter(receiver=user).delete()
-    MessageHistory.objects.filter(edited_by=user).delete()
-
-
-
 @receiver(post_save, sender=Message)
-def create_notification_on_created_message(sender, instance, created, **kwargs):
-    if created:
-        create_message_notification(instance)
-
+def create_notification(sender, instance, created, **kwargs):
+    if created: # Only trigger when a new message is created
+        Notification.objects.create(
+            user = instance.receiver,
+            message = instance
+        )
+        
 @receiver(pre_save, sender=Message)
-def save_message_history_on_update(sender, instance, **kwargs):
-    if instance.id:
+def log_message_edit(sender, instance, **kwargs):
+    # Check if the message content is being edited (not the first creation)
+    if instance.pk:
         try:
-            message = Message.objects.get(id=instance.id)
-            log_to_message_history(message)
+            original = Message.objects.get(pk=instance.pk) # Original content
+            
+            if original.content != instance.content:  # Check if content is different
+                # Create a new history record for the edited message
+                MessageHistory.objects.create(
+                    message = original,
+                    old_content=original.content,
+                    edited_by=instance.edited_by,
+                )   
+                instance.edited = True # Mark the message as edited
+                instance.edited_at = timezone.now()
         except Message.DoesNotExist:
-            pass
+            pass      # If the message does not exist, do nothing    
+
 
 @receiver(post_delete, sender=User)
-def clean_up_on_user_delete(sender, instance, using, **kwargs):
-    delete_user_entries(instance)
+def delete_user_related_data(sender, instance, **kwargs):
+    # Delete all messages where the user is the sender or receiver
+    Message.objects.filter(sender=instance).delete()
+    Message.objects.filter(receiver=instance).delete()
+    
+    # Delete all notifications related to the user
+    Notification.objects.filter(user=instance).delete()
+
+    # Delete all message histories related to the user's messages
+    MessageHistory.objects.filter(message__sender=instance).delete()
+    MessageHistory.objects.filter(message__receiver=instance).delete()         

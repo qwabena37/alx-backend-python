@@ -1,137 +1,133 @@
-from rest_framework import viewsets, permissions, status, generics
+# messaging/views.py
+
+from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework.decorators import action, api_view, permission_classes
-from django.utils.decorators import method_decorator
-from django.views.decorators.cache import cache_page
-from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework import filters
-from django.shortcuts import get_object_or_404
+from rest_framework.permissions import IsAuthenticated
+from rest_framework import status
 from django.contrib.auth import get_user_model
-from rest_framework_simplejwt.views import TokenObtainPairView
-
-
-from .auth import CustomTokenObtainPairSerializer
-from .permissions import IsParticipantOfConversation, IsMessageOwner
-from .models import Conversation, Message, MessageHistory
-from .serializers import ConversationSerializer, MessageSerializer, UserSerializer, MessageHistorySerializer
-from .pagination import LargeResultsSetPagination, StandardResultsSetPagination
-from .filters import MessageFilter
-
+from .serializers import MessageSerializer
+from .models import Message
+from django.shortcuts import get_object_or_404
+from django.views.decorators.cache import cache_page
+from rest_framework import viewsets
+from django_filters.rest_framework import DjangoFilterBackend
+from chats.models import Message, Conversation
+from chats.pagination import MessagePagination
+from chats.permissions import IsParticipantOfConversation
+from chats.filters import MessageFilter
 
 User = get_user_model()
 
-class UserViewset(viewsets.ModelViewSet):
-    serializer_class = UserSerializer
-    permission_classes = [permissions.AllowAny]
-    queryset = User.objects.all()
+class DeleteUserView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def delete_user(self, request, *args, **kwargs):
+        user = request.user  # The logged-in user
+        try:
+            user.delete()  # This will trigger the post_delete signal for the User model
+            return Response({"detail": "User account deleted successfully."}, status=status.HTTP_204_NO_CONTENT)
+        except Exception as e:
+            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 
-@api_view(['DELETE'])
-@permission_classes([permissions.IsAuthenticated])
-def delete_user(request, pk):
-    try:
-        user = User.objects.get(pk=pk)
-        user.delete()
-        return Response(status=status.HTTP_204_NO_CONTENT)
-    except User.DoesNotExist:
-        return Response({'detail': 'User does not exist'}, status=status.HTTP_404_NOT_FOUND)
+class ThreadedConversationView(APIView):
+    permission_classes = [IsAuthenticated]
 
-@api_view(['GET'])
-@permission_classes([permissions.IsAuthenticated])
-def get_unread_messages(request):
-    try:
-        messages = Message.unread.unread_for_user(request.user).only("message_id", "sender", "content", "timestamp")
+    def get_replies(self, parent_message):
+        """
+        Recursive function to fetch all replies to a message and its nested replies.
+        """
+        replies = parent_message.replies.all()  # Get all replies to the current message
+        result = []
 
-        return Response({'detail': messages}, status=status.HTTP_200_OK)
-    except Message.DoesNotExist:
-        return Response({'detail': 'No unread messages'}, status=status.HTTP_404_NOT_FOUND)    
+        # For each reply, serialize it and add any nested replies
+        for reply in replies:
+            reply_data = MessageSerializer(reply).data  # Serialize the reply
+            reply_data['replies'] = self.get_replies(reply)  # Recursively get nested replies
+            result.append(reply_data)
 
-class ConversationViewSet(viewsets.ModelViewSet):
-    queryset = Conversation.objects.all()
-    serializer_class = ConversationSerializer
-    permission_classes = [permissions.IsAuthenticated, IsParticipantOfConversation]
-    pagination_class = LargeResultsSetPagination
-    filter_backends = [MessageFilter]
-    filterset_fields = ['participants']
+        return result
 
-    def get_queryset(self):
-        conversation_id = self.kwargs.get('conversation_pk')  # note the lookup key
-        # will break since there is no field for conversation in message
-        return Message.objects.filter(
-            conversation_id=conversation_id,
-            conversation__participants=self.request.user
-        ).order_by('sent_at')
+    def get(self, request, message_id, *args, **kwargs):
+        # Fetch the root message (the one being replied to) using select_related and prefetch_related
+        message = get_object_or_404(
+            Message.objects.prefetch_related('replies').select_related('sender', 'receiver'),
+            id=message_id
+        )
 
-    def perform_create(self, serializer):
-        # Add current user to participants automatically (if not already added by serializer)
-        conversation = serializer.save()
-        conversation.participants.add(self.request.user)
+        # Serialize the message and its replies recursively
+        message_data = MessageSerializer(message).data
+        message_data['replies'] = self.get_replies(message)  # Add replies in a nested format
+        
+        return Response(message_data, status=status.HTTP_200_OK)
 
-    # @action(detail=True, methods=['get'], url_path='messages')
-    # def messages(self, request, pk=None):
-    #     conversation = self.get_object()
+    def post(self, request, *args, **kwargs):
+        """
+        This view allows users to send a reply to a specific message.
+        """
+        sender = request.user  # Get the sender (currently logged-in user)
+        receiver = get_object_or_404(User, id=request.data.get('receiver_id'))
+        parent_message = get_object_or_404(Message, id=request.data.get('parent_message_id'))
 
-    #     if request.user not in conversation.participants.all():
-    #         return Response({"detail": "You are not a participant in this conversation."}, status=status.HTTP_403_FORBIDDEN)
+        # Create a new message (reply)
+        new_message = Message.objects.create(
+            sender=sender,
+            receiver=receiver,
+            content=request.data.get('content'),
+            parent_message=parent_message  # Set the parent message as the one being replied to
+        )
 
-    #     messages = conversation.messages.all().order_by('sent_at')
-    #     serializer = MessageSerializer(messages, many=True)
-    #     return Response(serializer.data)
+        return Response(MessageSerializer(new_message).data, status=status.HTTP_201_CREATED)    
 
-    # @action(detail=True, methods=['post'], url_path='messages')
-    # def send_message(self, request, pk=None):
-    #     conversation = self.get_object()
 
-    #     if request.user not in conversation.participants.all():
-    #         return Response({"detail": "You are not a participant in this conversation."}, status=status.HTTP_403_FORBIDDEN)
+class UnreadMessagesView(APIView):
+    permission_classes = [IsAuthenticated]
 
-    #     data = request.data.copy()
-    #     data['conversation'] = str(conversation.conversation_id)
+    def get(self, request, *args, **kwargs):
+        # Use the custom manager to fetch unread messages for the logged-in user
+        # Apply filter and .only() here to optimize the query
+        message = Message.unread.unread_for_user
+        unread_messages = Message.objects.filter(receiver=request.user, read=False).only('id', 'sender', 'content', 'timestamp')
 
-    #     serializer = MessageSerializer(data=data, context={'request': request})
-    #     serializer.is_valid(raise_exception=True)
-    #     message = serializer.save(sender=request.user)
-    #     return Response(MessageSerializer(message).data, status=201)
-    
+        # Serialize the unread messages
+        serializer = MessageSerializer(unread_messages, message, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)  
 
-@method_decorator(cache_page(60), name='dispatch')
 class MessageViewSet(viewsets.ModelViewSet):
     queryset = Message.objects.all()
     serializer_class = MessageSerializer
-    permission_classes = [permissions.IsAuthenticated, IsMessageOwner]
-    pagination_class = StandardResultsSetPagination
+    filter_backends = (DjangoFilterBackend,)
+    filterset_class = MessageFilter
+    permission_classes = [IsAuthenticated, IsParticipantOfConversation]
+    pagination_class = MessagePagination
 
-    def get_queryset(self):
-        return Message.objects.select_related("receiver").prefetch_related("replies").filter(sender=self.request.user)
+    # Cache the list view for 60 seconds
+    @cache_page(60)
+    def list(self, request, *args, **kwargs):
+        """
+        Return a list of messages for the conversation that the logged-in user is a participant of.
+        """
+        conversation_id = self.kwargs.get('conversation_id')
 
-    def create(self, request, *args, **kwargs):
-        conversation_id = self.kwargs.get('conversation_pk')
-        conversation = get_object_or_404(Conversation, conversation_id=conversation_id)
+        try:
+            conversation = Conversation.objects.get(id=conversation_id)
+        except Conversation.DoesNotExist:
+            return Response(
+                {"detail": "Conversation does not exist."},
+                status=status.HTTP_403_FORBIDDEN
+            )
 
-        # Check if user is a participant
-        if request.user not in conversation.participants.all():
+        # Check if the user is a participant of the conversation
+        if self.request.user not in conversation.participants.all():
             return Response(
                 {"detail": "You are not a participant in this conversation."},
                 status=status.HTTP_403_FORBIDDEN
             )
-        
-        serializer = self.get_serializer(data=request.data, context={
-            'request': request,
-            'conversation': conversation
-        })
-        serializer.is_valid(raise_exception=True)
-        serializer.save()
-        headers = self.get_success_headers(serializer.data)
-        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
 
+        # Fetch messages for the conversation and apply optimizations
+        conversation_messages = Message.objects.filter(conversation=conversation).only('id', 'sender', 'content', 'timestamp')
 
+        # Serialize the messages
+        serializer = MessageSerializer(conversation_messages, many=True)
+        return Response(serializer.data)         
 
-class MyTokenObtainPairView(TokenObtainPairView):
-    serializer_class = CustomTokenObtainPairSerializer
-
-
-class MessageEditHistory(viewsets.ModelViewSet):
-    queryset = MessageHistory.objects.all()
-    serializer_class = MessageHistorySerializer
-    permission_classes = [permissions.IsAuthenticated]
-    pagination_class = LargeResultsSetPagination

@@ -1,22 +1,20 @@
+# messaging_app/chats/pagination.py
+
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 
-
-class LargeResultsSetPagination(PageNumberPagination):
-    page_size = 1000
-    page_size_query_param = 'page_size'
-    max_page_size = 10000
-
-class StandardResultsSetPagination(PageNumberPagination):
-    page_size = 20
-    page_size_query_param = 'page_size'
-
+class MessagePagination(PageNumberPagination):
+    page_size = 20 
+    page_size_query_param = 'page_size'  
+    max_page_size = 100 
+    
     def get_paginated_response(self, data):
+        """
+        This method will return the paginated data along with the total count of messages.
+        """
         return Response({
-            'total_count': self.page.paginator.count, 
-            'total_pages': self.page.paginator.num_pages,
-            'current_page': self.page.number,
-            'next': self.get_next_link(),
-            'previous': self.get_previous_link(),
-            'results': data
+            'count': self.page.paginator.count,  # Total number of messages
+            'next': self.get_next_link(),  # Link to the next page of results (if any)
+            'previous': self.get_previous_link(),  # Link to the previous page (if any)
+            'results': data  # The actual message results for the current page
         })

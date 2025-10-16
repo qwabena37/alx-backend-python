@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 """
-Memory-efficient aggregation module for calculating average age using
-generators
+4-stream_ages.py
+Memory-efficient aggregation using generators
 """
 
 import seed
@@ -9,51 +9,34 @@ import seed
 
 def stream_user_ages():
     """
-    Generator function that yields user ages one by one
-    Yields: integer age of each user
+    Generator that yields user ages one by one
+    from the user_data table.
     """
     connection = seed.connect_to_prodev()
-    if connection is None:
-        return
+    cursor = connection.cursor(dictionary=True)
+    cursor.execute("SELECT age FROM user_data;")
 
-    try:
-        cursor = connection.cursor()
-        cursor.execute("SELECT age FROM user_data")
+    for row in cursor:  # loop 1
+        yield row["age"]
 
-        # Use generator to yield one age at a time
-        for row in cursor:
-            yield row[0]  # row[0] contains the age value
-
-    except Exception as e:
-        print(f"Error streaming ages: {e}")
-    finally:
-        if cursor:
-            cursor.close()
-        if connection:
-            connection.close()
+    cursor.close()
+    connection.close()
 
 
 def calculate_average_age():
     """
-    Calculates the average age using the generator without loading
-    the entire dataset into memory
-    Returns: average age as float
+    Calculate average age of users without loading all data into memory.
     """
     total_age = 0
     count = 0
 
-    # Use the generator to process ages one by one
-    for age in stream_user_ages():
+    for age in stream_user_ages():  # loop 2
         total_age += age
         count += 1
 
-    if count == 0:
-        return 0
-
-    return total_age / count
+    average_age = total_age / count if count > 0 else 0
+    print(f"Average age of users: {average_age:.2f}")
 
 
 if __name__ == "__main__":
-    # Calculate and print average age
-    average_age = calculate_average_age()
-    print(f"Average age of users: {average_age:.2f}")
+    calculate_average_age()

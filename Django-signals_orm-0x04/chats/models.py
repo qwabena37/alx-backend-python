@@ -1,51 +1,91 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
+from .managers import UserManager
 import uuid
 
-
-ROLE_CHOICES = [
-    ('guest', 'Guest'),
-    ('host', 'Host'),
-    ('admin', 'Admin'),
-]
-
+# User model
 class User(AbstractUser):
-    username = None # made this none to get pass integrity error
-    user_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    first_name = models.CharField(max_length=50, null=False)
-    last_name = models.CharField(max_length=50, null=False)
-    email = models.CharField(max_length=100, null=False, unique=True)
-    password_hash = models.CharField(max_length=255, null=False)
-    phone_number = models.CharField(max_length=50, null=True)
-    role = models.CharField(max_length=50, null=False, choices=ROLE_CHOICES)
+    ROLE_CHOICES = [
+        ('guest', 'Guest'),
+        ('host', 'Host'),
+        ('admin', 'Admin'),
+    ]
+    user_id = models.UUIDField(primary_key=True, default=uuid.uuid4, unique=True, editable=False, db_index=True)
+    username = None
+    email = models.EmailField(unique=True, null=False, blank=False)
+    phone_number = models.CharField(max_length=20, null=True, blank=True)
+    password = models.CharField(max_length=128, null=False, blank=False) # This field is not usually hardcoded in django
+    role = models.CharField(max_length=50, choices=ROLE_CHOICES, null=False, default='guest')
     created_at = models.DateTimeField(auto_now_add=True)
-
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    objects = UserManager()
+    
+    # Use email instead of username for authentication
     USERNAME_FIELD = 'email'
-    REQUIRED_FIELDS = ['first_name', 'last_name', 'password_hash', 'role']
-
+    REQUIRED_FIELDS = ['first_name', 'last_name']
+    
+    class Meta:
+        """Class for defining user table constraints and indexes"""
+        db_table = 'user'
+        constraints = [
+            models.UniqueConstraint(fields=['email'], name='unique_user_email')
+        ]
+        indexes = [
+            models.Index(fields=['email']),
+            models.Index(fields=['user_id'])
+        ]
+    
     def __str__(self):
-        return f'{self.first_name} {self.last_name}'
+        return f'Name: {self.first_name} {self.last_name} ({self.email})'
+    
+    def get_full_name(self):
+        return f"{self.first_name} {self.last_name}"
     
 
+# Conversation model
+class Conversation(models.Model):
+    conversation_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False, unique=True, db_index=True)
+    participants = models.ManyToManyField(User, related_name='conversations')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        """Class for defining conversation table indexes"""
+        db_table = 'conversation'
+        indexes = [
+            models.Index(fields=['created_at']),
+            models.Index(fields=['updated_at']),
+            models.Index(fields=['conversation_id'])
+        ]
+    
+    def __str__(self):
+        return f"Conversation {self.conversation_id} with {', '.join([str(user) for user in self.participants.all()])}"
+
+# Message model
 class Message(models.Model):
-    message_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False, db_index=True)
-    sender = models.ForeignKey('user', on_delete=models.CASCADE, related_name='message_sender')
-    recipient = models.ForeignKey('user', on_delete=models.CASCADE, related_name='message_reciever')
-    conversation = models.ForeignKey('conversation', on_delete=models.CASCADE, related_name='message')
+    message_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False, unique=True, db_index=True)
+    sender = models.ForeignKey(User, on_delete=models.CASCADE, related_name='sent_messages', null=False, db_index=True)
+    conversation = models.ForeignKey(Conversation, on_delete=models.CASCADE, related_name='messages', null=False, db_index=True)
     message_body = models.TextField()
     sent_at = models.DateTimeField(auto_now_add=True)
-
+    parent_message = models.ForeignKey('self', on_delete=models.SET_NULL, null=True, blank=True, related_name='replies')
+    
+    class Meta:
+        """Class for defining message table indexes"""
+        db_table = 'message'
+        ordering = ['sent_at']
+        indexes = [
+            models.Index(fields=["sender", "sent_at"]),
+            models.Index(fields=["conversation", "sent_at"]),
+            models.Index(fields=["sent_at"]),
+        ]
+        constraints = [
+            models.CheckConstraint(
+                check=models.Q(message_body__isnull=False) & ~models.Q(message_body=''),
+                name="message_body_not_empty"
+            )
+        ]
+    
     def __str__(self):
-        return f'From {self.sender}: {self.message_body}'
-
-
-class Conversation(models.Model):
-    conversation_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False, db_index=True)
-    participants = models.ManyToManyField('user', related_name='conversation')
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    def __str__(self):
-        users = self.participants.all()
-        if users.count() == 2:
-            return f"Chat: {users[0].first_name} - {users[1].first_name}"
-        return f"Conversation ({self.conversation_id})" 
+        return f"Message {self.message_id} from {self.sender} in conversation {self.conversation_id}"    

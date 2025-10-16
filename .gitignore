@@ -1,0 +1,6 @@
+# Virtual environment
+generator
+
+# Environment
+.env
+

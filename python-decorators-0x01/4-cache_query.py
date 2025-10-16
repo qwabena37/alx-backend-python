@@ -1,89 +1,50 @@
-import functools
-import os
+#!/usr/bin/python3
 import time
+import sqlite3
+import functools
 
-from db_setup import setup_database_cache_query
-from shared_decorator import with_db_connection
-
-# --- Caching Decorator Implementation ---
-
-# Global dictionary to act as the cache
+# Simple cache dictionary with timestamp
 query_cache = {}
 
-
-def cache_query(func):
-    """
-    Decorator that caches the results of a function based on its arguments.
-    It's designed for functions where the first argument after the connection
-    is the query string.
-    """
-
+# Decorator to handle opening and closing DB connection
+def with_db_connection(func):
     @functools.wraps(func)
-    def wrapper(conn, query, *args, **kwargs):
-        # Use the query string as the cache key
-        cache_key = query
-
-        if cache_key in query_cache:
-            print(f"CACHE HIT for query: \"{cache_key}\"")
-            return query_cache[cache_key]
-        else:
-            print(f"CACHE MISS for query: \"{cache_key}\"")
-            # Execute the function to get the result from the DB
-            result = func(conn, query, *args, **kwargs)
-            # Store the result in the cache
-            query_cache[cache_key] = result
-            return result
-
+    def wrapper(*args, **kwargs):
+        conn = sqlite3.connect('users.db')  # open connection
+        try:
+            result = func(conn, *args, **kwargs)  # pass conn to wrapped function
+        finally:
+            conn.close()  # ensure connection is always closed
+        return result
     return wrapper
 
-
-# --- Example Usage ---
+# Decorator to cache query results with timestamp
+def cache_query(func):
+    @functools.wraps(func)
+    def wrapper(conn, query, *args, **kwargs):
+        if query in query_cache:
+            cached_result, timestamp = query_cache[query]
+            print(f"[CACHE HIT] Query: {query} (cached at {time.strftime('%H:%M:%S', time.localtime(timestamp))})")
+            return cached_result
+        print(f"[CACHE MISS] Executing and caching query: {query}")
+        result = func(conn, query, *args, **kwargs)
+        query_cache[query] = (result, time.time())  # store result with timestamp
+        return result
+    return wrapper
 
 @with_db_connection
 @cache_query
 def fetch_users_with_cache(conn, query):
-    """
-    Fetches users from the database. On the first call with a specific query,
-    it hits the DB. Subsequent calls with the same query use the cache.
-    """
-    print("  > Executing query against the database...")
-    # Simulate a delay for the actual database call
-    time.sleep(1)
     cursor = conn.cursor()
     cursor.execute(query)
-    results = cursor.fetchall()
-    print("  > ...Query finished.")
-    return results
+    return cursor.fetchall()
 
-
-# --- Main Execution Block ---
+# Demonstration
 if __name__ == "__main__":
-    setup_database_cache_query()
+    # First call will execute and cache the result
+    users = fetch_users_with_cache(query="SELECT * FROM users")
+    print(users)
 
-    query_string = "SELECT * FROM users"
-
-    print("\n" + "=" * 55)
-    print("Demonstrating the query caching decorator...")
-    print("=" * 55)
-
-    # --- First Call (Cache Miss) ---
-    print("\n--- 1. First call (should be a CACHE MISS) ---")
-    start_time_1 = time.time()
-    users = fetch_users_with_cache(query=query_string)
-    end_time_1 = time.time()
-    print(f"Users fetched: {users}")
-    print(f"Time taken: {end_time_1 - start_time_1:.2f} seconds.")
-
-    # --- Second Call (Cache Hit) ---
-    print("\n--- 2. Second call (should be a CACHE HIT) ---")
-    start_time_2 = time.time()
-    users_again = fetch_users_with_cache(query=query_string)
-    end_time_2 = time.time()
-    print(f"Users fetched from cache: {users_again}")
-    print(f"Time taken: {end_time_2 - start_time_2:.4f} seconds.")
-    print("Note the significantly faster execution time.")
-
-    # Clean up the database file
-    if os.path.exists('users.db'):
-        os.remove('users.db')
-        print("\nCleaned up 'users.db'.")
+    # Second call will use the cached result
+    users_again = fetch_users_with_cache(query="SELECT * FROM users")
+    print(users_again)
