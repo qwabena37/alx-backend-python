@@ -1,0 +1,7 @@
+che__/
+*.pyc
+*.pyo
+*.db
+.env
+.git
+.gitignore

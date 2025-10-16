@@ -89,11 +89,15 @@ WSGI_APPLICATION = 'messaging_app.wsgi.application'
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-    }
-}
+            "default": {
+                        "ENGINE": "django.db.backends.postgresql",
+                                "NAME": env("DB_NAME"),
+                                        "USER": env("DB_USER"),
+                                                "PASSWORD": env("DB_PASSWORD"),
+                                                        "HOST": env("DB_HOST"),
+                                        "PORT": env("DB_PORT"),
+                                                                    }
+            }
 
 
 # Password validation
@@ -140,27 +144,50 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 AUTH_USER_MODEL = 'chats.User'
 
 REST_FRAMEWORK = {
-    'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.IsAuthenticated',
-    ],
-    'DEFAULT_AUTHENTICATION_CLASSES': [
+    DEFAULT_PERMISSION_CLASSES: [
+        rest_framework.permissions.IsAuthenticated,
+    ]
+    DEFAULT_AUTHENTICATION_CLASSES: [
         'rest_framework.authentication.SessionAuthentication',
         'rest_framework_simplejwt.authentication.JWTAuthentication',
         'rest_framework.authentication.BasicAuthentication',
     ],
     # Pagination settings
-    'PAGE_SIZE': 20,  
-    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
+    PAGE_SIZE: 20,  
+    DEFAULT_PAGINATION_CLASS: rest_framework.pagination.PageNumberPagination,
 }
-
 # CORS configuration
 CORS_ALLOW_ALL_ORIGINS = True
 
 # Simple JWT settings
+# JWT / Authentication
+# ----------------------------
+ACCESS_TOKEN_LIFETIME = env.int("ACCESS_TOKEN_LIFETIME", default=3600)
+REFRESH_TOKEN_LIFETIME = env.int("REFRESH_TOKEN_LIFETIME", default=86400)
+JWT_SECRET_KEY = env("JWT_SECRET_KEY", default=SECRET_KEY)
+JWT_ALGORITHM = env("JWT_ALGORITHM", default="HS256")
+
 SIMPLE_JWT = {
-    "ACCESS_TOKEN_LIFETIME": timedelta(hours=env.int("ACCESS_TOKEN_LIFETIME")),
-    "REFRESH_TOKEN_LIFETIME": timedelta(days=env.int("REFRESH_TOKEN_LIFETIME")),
-    "ALGORITHM": env("JWT_ALGORITHM"),
-    "SIGNING_KEY": SECRET_KEY,
-    "AUTH_HEADER_TYPES": ("Bearer",),
-}
+            "ACCESS_TOKEN_LIFETIME": timedelta(seconds=ACCESS_TOKEN_LIFETIME),
+                "REFRESH_TOKEN_LIFETIME": timedelta(seconds=REFRESH_TOKEN_LIFETIME),
+                    "ALGORITHM": JWT_ALGORITHM,
+                        "SIGNING_KEY": JWT_SECRET_KEY,
+                        }
+# Django Core
+# ----------------------------
+SECRET_KEY = env("SECRET_KEY")
+DEBUG = env.bool("DEBUG", default=False)
+ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=["localhost"])
+
+# Channels / Redis
+# ----------------------------
+CHANNEL_LAYERS = {
+            "default": {
+                        "BACKEND": env("CHANNEL_LAYERS_BACKEND", default="channels_redis.core.RedisChannelLayer"),
+                                "CONFIG": {
+                                                "hosts": [
+                                                                    (env("REDIS_HOST", default="redis"), env.int("REDIS_PORT", default=6379))
+                                                                                ],
+                                                        },
+                                    },
+            }
