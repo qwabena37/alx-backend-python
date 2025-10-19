@@ -1,14 +1,14 @@
-# Green Deployment - New Version for Testing
+I# Green Deployment - New Version for Testing
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: django-messaging-green
+  name: django-green-deployment
   labels:
     app: django-messaging
     version: green
     tier: backend
 spec:
-  replicas: 3
+  replicas: 2
   selector:
     matchLabels:
       app: django-messaging
@@ -20,9 +20,9 @@ spec:
         version: green
     spec:
       containers:
-      - name: django-app
+      - name: django-green
         # Green version - new version to be deployed
-        image: your-dockerhub-username/django-messaging-app:v2.0
+        image: qjaymce/django-messaging-app:v2.0
         imagePullPolicy: Always
         ports:
         - containerPort: 8000
@@ -94,7 +94,7 @@ spec:
       # Init container for migrations
       initContainers:
       - name: django-migrations
-        image: your-dockerhub-username/django-messaging-app:v2.0
+        image: qjaymce/django-messaging-app:v2.0
         command: ['python', 'manage.py', 'migrate', '--noinput']
         env:
         - name: DJANGO_SETTINGS_MODULE
