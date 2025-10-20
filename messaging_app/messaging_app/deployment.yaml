@@ -24,7 +24,7 @@ spec:
         # - your-dockerhub-username/django-messaging-app:latest
         # - gcr.io/your-project/django-messaging-app:v1.0
         # - your-registry.com/django-messaging-app:latest
-        image: your-dockerhub-username/django-messaging-app:latest
+        image: qjaymce/django-messaging-app:latest
         imagePullPolicy: Always
         ports:
         - containerPort: 8000
@@ -91,7 +91,7 @@ spec:
       # Optional: Add init container for migrations
       initContainers:
       - name: django-migrations
-        image: your-dockerhub-username/django-messaging-app:latest
+        image: qjaymce/django-messaging-app:latest
         command: ['python', 'manage.py', 'migrate']
         env:
         - name: DJANGO_SETTINGS_MODULE
@@ -116,7 +116,7 @@ spec:
   selector:
     app: django-messaging
   ports:
-  - port: 80
+  - port: 8000
     targetPort: 8000
     protocol: TCP
     name: http

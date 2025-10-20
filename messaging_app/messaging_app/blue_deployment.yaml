@@ -1,12 +1,11 @@
 ---
-# Blue Deployment - Current/Stable Version
+# Deployment for Django Messaging App
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: django-messaging-blue
+  name: django-messaging-app
   labels:
     app: django-messaging
-    version: blue
     tier: backend
 spec:
   replicas: 3
@@ -18,23 +17,21 @@ spec:
     metadata:
       labels:
         app: django-messaging
-        version: blue
     spec:
       containers:
-      - name: django-app
-        # Blue version - updated to v2.0
-        image: your-dockerhub-username/django-messaging-app:v2.0
+      - name: django-blue
+        # Replace with your actual Docker image
+        # Examples:
+        # - your-dockerhub-username/django-messaging-app:latest
+        # - gcr.io/your-project/django-messaging-app:v1.0
+        # - your-registry.com/django-messaging-app:latest
+        image: qjaymce/django-messaging-app:latest
         imagePullPolicy: Always
         ports:
         - containerPort: 8000
           name: http
           protocol: TCP
         env:
-        # Version identifier
-        - name: VERSION
-          value: "blue-v1.0"
-        - name: DEPLOYMENT_COLOR
-          value: "blue"
         # Django settings
         - name: DJANGO_SETTINGS_MODULE
           value: "messaging_project.settings"
@@ -42,14 +39,14 @@ spec:
           value: "False"
         - name: ALLOWED_HOSTS
           value: "*"
-        # Database configuration
+        # Database configuration (example - adjust based on your setup)
         - name: DB_HOST
           value: "mysql-service"
         - name: DB_PORT
           value: "3302"
         - name: DB_NAME
           value: "messaging_db"
-        # Secrets
+        # Use secrets for sensitive data in production
         - name: DB_USER
           valueFrom:
             secretKeyRef:
@@ -92,11 +89,11 @@ spec:
           limits:
             memory: "512Mi"
             cpu: "500m"
-      # Init container for migrations
+      # Optional: Add init container for migrations
       initContainers:
       - name: django-migrations
-        image: your-dockerhub-username/django-messaging-app:v1.0
-        command: ['python', 'manage.py', 'migrate', '--noinput']
+        image: qjaymce/django-messaging-app:latest
+        command: ['python', 'manage.py', 'migrate']
         env:
         - name: DJANGO_SETTINGS_MODULE
           value: "messaging_project.settings"
@@ -106,3 +103,52 @@ spec:
           value: "3302"
         - name: DB_NAME
           value: "messaging_db"
+
+---
+# Service to expose Django app internally
+apiVersion: v1
+kind: Service
+metadata:
+  name: django-messaging-service
+  labels:
+    app: django-messaging
+spec:
+  type: ClusterIP
+  selector:
+    app: django-messaging
+  ports:
+  - port: 8000
+    targetPort: 8000
+    protocol: TCP
+    name: http
+  sessionAffinity: None
+
+---
+# Optional: Secret for sensitive data
+# Create this manually or use a separate secrets management solution
+# kubectl create secret generic django-secrets \
+#   --from-literal=db-user=myuser \
+#   --from-literal=db-password=mypassword \
+#   --from-literal=secret-key=your-django-secret-key
+apiVersion: v1
+kind: Secret
+metadata:
+  name: django-secrets
+type: Opaque
+stringData:
+  db-user: "django_user"
+  db-password: "changeme123"
+  secret-key: "django-insecure-2%fzm0+!c2$)$8vhqa&z#k86z(l3a5g6ry8mrf+d&i)ak_9%ul"
+
+---
+# Optional: ConfigMap for non-sensitive configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: django-config
+data:
+  DJANGO_SETTINGS_MODULE: "messaging_project.settings"
+  ALLOWED_HOSTS: "*"
+  DB_HOST: "mysql-service"
+  DB_PORT: "3302"
+  DB_NAME: "messaging_db"
