@@ -1,3 +1,11 @@
+stage('Checkout') {
+    steps {
+        deleteDir()  // Clean workspace to prevent conflicts
+        git branch: 'main', credentialsId: 'github-creds', url: 'https://github.com/<your-username>/<your-repo>.git'
+    }
+}
+
+
 pipeline {
     agent any
 
