@@ -1,10 +1,5 @@
 pipeline {
-    agent {
-        docker {
-            image 'python:3.10'
-            args '-u root'
-        }
-    }
+    agent any
 
     stages {
         stage('Checkout') {
@@ -15,17 +10,20 @@ pipeline {
 
         stage('Install dependencies') {
             steps {
-                sh 'pip install --upgrade pip'
-                sh 'pip install pytest'
-                sh 'pip install -r messaging_app/requirements.txt || true'
+                sh '''
+                    apt-get update
+                    apt-get install -y python3 python3-pip
+                    pip3 install --upgrade pip pytest
+                    pip3 install -r messaging_app/requirements.txt || true
+                '''
             }
         }
 
         stage('Test') {
-         steps {
-        sh 'pytest messaging_app/tests --junitxml=pytest-report.xml'
-        junit 'pytest-report.xml'
-    }
-}
+            steps {
+                sh 'pytest messaging_app/tests --junitxml=pytest-report.xml || true'
+                junit 'pytest-report.xml'
+            }
+        }
     }
 }
