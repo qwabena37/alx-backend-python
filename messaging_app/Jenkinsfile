@@ -22,9 +22,10 @@ pipeline {
         }
 
         stage('Test') {
-            steps {
-                sh 'pytest messaging_app/tests --maxfail=1 --disable-warnings -q'
-            }
-        }
+         steps {
+        sh 'pytest messaging_app/tests --junitxml=pytest-report.xml'
+        junit 'pytest-report.xml'
+    }
+}
     }
 }
