@@ -1,9 +1,21 @@
-stage('Checkout') {
-    steps {
-        deleteDir()  // Clean workspace to prevent conflicts
-        git branch: 'main', credentialsId: 'github-creds', url: 'https://github.com/<your-username>/<your-repo>.git'
+pipeline {
+    agent any
+
+    stages {
+        stage('Checkout') {
+            steps {
+                git url: 'https://github.com/qwabena37/alx-backend-python.git', branch: 'main'
+            }
+        }
+
+        stage('Test') {
+            steps {
+                sh 'pytest --maxfail=1 --disable-warnings -q'
+            }
+        }
     }
 }
+
 
 
 pipeline {
@@ -16,7 +28,7 @@ pipeline {
     stages {
         stage('Checkout') {
             steps {
-                git credentialsId: 'github-creds', url: 'https://github.com/<your-username>/<your-repo>.git', branch: 'main'
+                git credentialsId: 'github-creds', url:  'https://github.com/qwabena37/alx-backend-python.git', branch: 'main'
             }
         }
 
