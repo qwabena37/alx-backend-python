@@ -89,16 +89,18 @@ WSGI_APPLICATION = 'messaging_app.wsgi.application'
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
 DATABASES = {
-            "default": {
-                        "ENGINE": "django.db.backends.postgresql",
-                                "NAME": env("DB_NAME"),
-                                        "USER": env("DB_USER"),
-                                                "PASSWORD": env("DB_PASSWORD"),
-                                                        "HOST": env("DB_HOST"),
-                                        "PORT": env("DB_PORT"),
-                                                                    }
-            }
-
+    "default": {
+        "ENGINE": "django.db.backends.mysql",
+        "NAME": os.environ.get("DATABASE_NAME", "ci_test_db"),
+        "USER": os.environ.get("DATABASE_USER", "ci_user"),
+        "PASSWORD": os.environ.get("DATABASE_PASSWORD", "ci_password"),
+        "HOST": os.environ.get("DATABASE_HOST", "127.0.0.1"),
+        "PORT": os.environ.get("DATABASE_PORT", "3306"),
+        "OPTIONS": {
+            "init_command": "SET sql_mode='STRICT_TRANS_TABLES'",
+        },
+    }
+}
 
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
@@ -138,24 +140,23 @@ STATIC_URL = 'static/'
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
-
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 AUTH_USER_MODEL = 'chats.User'
 
 REST_FRAMEWORK = {
-    DEFAULT_PERMISSION_CLASSES: [
-        rest_framework.permissions.IsAuthenticated,
-    ]
-    DEFAULT_AUTHENTICATION_CLASSES: [
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.IsAuthenticated',
+    ],
+    'DEFAULT_AUTHENTICATION_CLASSES': [
         'rest_framework.authentication.SessionAuthentication',
         'rest_framework_simplejwt.authentication.JWTAuthentication',
         'rest_framework.authentication.BasicAuthentication',
     ],
-    # Pagination settings
-    PAGE_SIZE: 20,  
-    DEFAULT_PAGINATION_CLASS: rest_framework.pagination.PageNumberPagination,
+    'PAGE_SIZE': 20,
+    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
 }
+
 # CORS configuration
 CORS_ALLOW_ALL_ORIGINS = True
 

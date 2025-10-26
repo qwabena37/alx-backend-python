@@ -1,0 +1,83 @@
+name: CI — Django tests (MySQL)
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    # Database env exposed to the job; keep these in sync with the service below
+    env:
+      PYTHONUNBUFFERED: 1
+      DATABASE_HOST: 127.0.0.1
+      DATABASE_PORT: "3306"
+      DATABASE_NAME: ci_test_db
+      DATABASE_USER: ci_user
+      DATABASE_PASSWORD: ci_password
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: ci_test_db
+          MYSQL_USER: ci_user
+          MYSQL_PASSWORD: ci_password
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping --silent"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    strategy:
+      matrix:
+        python-version: [3.10, 3.11]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install system packages required for MySQL python bindings
+        run: |
+          sudo apt-get update
+          # mysql client (for readiness check) and headers needed by mysqlclient
+          sudo apt-get install -y default-mysql-client default-libmysqlclient-dev build-essential
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Wait for MySQL to be ready
+        # use MYSQL_PWD to avoid interactive password prompt
+        env:
+          MYSQL_PWD: ${{ env.DATABASE_PASSWORD }}
+        run: |
+          echo "Waiting for MySQL to accept connections..."
+          for i in $(seq 1 30); do
+            mysql -h $DATABASE_HOST -u$DATABASE_USER -e "SELECT 1" && break || sleep 2
+            echo "  still waiting..."
+          done
+
+      - name: (Optional) Run migrations before tests
+        run: python manage.py migrate --noinput
+
+      - name: Run Django tests
+        run: python manage.py test
