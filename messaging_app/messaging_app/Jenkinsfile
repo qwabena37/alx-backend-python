@@ -4,7 +4,7 @@ pipeline {
     stages {
         stage('Checkout') {
             steps {
-                git credentialsId: 'github-creds', url: 'https://github.com/qwabena37/alx-backend-python.git', branch: 'main'
+                git credentialsId: 'github-creds', url: 'https://github.com/qwabena37/alx-backend-python.git', git branch: 'main'
             }
         }
 
