@@ -1,0 +1,29 @@
+pipeline {
+    agent any
+
+    stages {
+        stage('Checkout') {
+            steps {
+                git credentialsId: 'github-creds', url: 'https://github.com/qwabena37/alx-backend-python.git', branch: 'main'
+            }
+        }
+
+        stage('Install dependencies') {
+            steps {
+                sh '''
+                    apt-get update
+                    apt-get install -y python3 python3-pip
+                    pip3 install --upgrade pip pytest
+                    pip3 install -r messaging_app/requirements.txt || true
+                '''
+            }
+        }
+
+        stage('Test') {
+            steps {
+                sh 'pytest messaging_app/tests --junitxml=pytest-report.xml || true'
+                junit 'pytest-report.xml'
+            }
+        }
+    }
+}
