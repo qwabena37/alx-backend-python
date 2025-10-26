@@ -1,0 +1,21 @@
+[run]
+branch = True
+source =
+    .
+omit =
+    */migrations/*
+    */tests/*
+    manage.py
+    */venv/*
+    .venv/*
+    */settings/*.py
+
+[report]
+exclude_lines =
+    pragma: no cover
+    if __name__ == '__main__':
+    # Django migrations
+    @
+
+[html]
+directory = htmlcov

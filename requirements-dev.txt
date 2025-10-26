@@ -1,0 +1,6 @@
+flake8
+coverage
+# optional plugins:
+# flake8-django
+# flake8-bugbear
+# pytest pytest-django pytest-cov (if you prefer pytest)

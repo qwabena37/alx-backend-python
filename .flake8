@@ -1,0 +1,15 @@
+[flake8]
+max-line-length = 88
+exclude =
+    .git,
+    __pycache__,
+    build,
+    dist,
+    venv,
+    env,
+    migrations
+extend-ignore = E203, W503
+# Optionally add specific per-project rules or plugins below
+# Example:
+# per-file-ignores =
+#     __init__.py: F401

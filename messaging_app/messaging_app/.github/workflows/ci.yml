@@ -1,4 +1,4 @@
-name: CI — Django tests (MySQL)
+name: CI — Lint, Tests & Coverage
 
 on:
   push:
@@ -7,8 +7,6 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-
-    # Database env exposed to the job; keep these in sync with the service below
     env:
       PYTHONUNBUFFERED: 1
       DATABASE_HOST: 127.0.0.1
@@ -54,19 +52,20 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pip-
 
-      - name: Install system packages required for MySQL python bindings
+      - name: Install system packages required for mysqlclient & mysql CLI
         run: |
           sudo apt-get update
-          # mysql client (for readiness check) and headers needed by mysqlclient
           sudo apt-get install -y default-mysql-client default-libmysqlclient-dev build-essential
 
       - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
+          # Install your runtime deps
           pip install -r requirements.txt
+          # Install dev / lint / coverage tools (either from requirements-dev.txt or explicitly)
+          if [ -f requirements-dev.txt ]; then pip install -r requirements-dev.txt; else pip install flake8 coverage; fi
 
       - name: Wait for MySQL to be ready
-        # use MYSQL_PWD to avoid interactive password prompt
         env:
           MYSQL_PWD: ${{ env.DATABASE_PASSWORD }}
         run: |
@@ -76,8 +75,63 @@ jobs:
             echo "  still waiting..."
           done
 
+      - name: Run flake8 (lint) and save output
+        id: flake
+        shell: bash
+        run: |
+          # Run flake8, capture output to file, and exit with the same status as flake8.
+          # We use tee so the output also appears in the logs.
+          flake8 . | tee flake8.txt
+          exit_code=${PIPESTATUS[0]}
+          echo "flake8-exit-code=$exit_code" >> $GITHUB_OUTPUT
+          exit $exit_code
+
+      - name: Upload flake8 output (always)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: flake8-output
+          path: flake8.txt
+          retention-days: 7
+
       - name: (Optional) Run migrations before tests
         run: python manage.py migrate --noinput
 
-      - name: Run Django tests
-        run: python manage.py test
+      - name: Run tests with coverage
+        shell: bash
+        run: |
+          # Run tests under coverage (adjust --source to your package names if desired)
+          coverage run --source='.' manage.py test
+          # Generate reports
+          coverage xml -i -o coverage.xml
+          coverage html -d htmlcov
+
+      - name: Bundle coverage (always) & prepare artifact files
+        if: always()
+        shell: bash
+        run: |
+          # If htmlcov exists, tar it; else create a placeholder
+          if [ -d htmlcov ]; then
+            tar -czf coverage-html.tar.gz htmlcov
+            echo "Created coverage-html.tar.gz"
+          else
+            echo "No htmlcov directory found" > coverage-html-missing.txt
+          fi
+          # If coverage.xml exists leave it; else create placeholder
+          if [ -f coverage.xml ]; then
+            echo "coverage.xml found"
+          else
+            echo "No coverage.xml generated" > coverage.xml.missing.txt
+          fi
+
+      - name: Upload coverage artifacts (always)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: |
+            coverage-html.tar.gz
+            coverage.xml
+            coverage.xml.missing.txt
+            coverage-html-missing.txt
+          retention-days: 7
